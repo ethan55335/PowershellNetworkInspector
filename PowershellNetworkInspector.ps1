@@ -284,14 +284,41 @@ if ($input -eq "Get-IPAbuseInfo"){
 if ($input -eq "Get-VirusTotal"){
 
     $counter = 0
-    foreach ($IP in $global:MasterDatabase.keys){
 
-        $Hash = $global:MasterDatabase[$IP].filehash
-    
-        $response = Query-VirusTotal -FileHash $hash -APIKey $APIKeys.VirusTotalAPIKey
-        $global:MasterDatabase[$IP]["VirusTotalResult"] = $response.data.attributes.last_analysis_stats.malicious
+    $Hashlist = @()
+
+    foreach ($IP in $global:MasterDatabase.Keys){
+
+        $Hash = $global:MasterDatabase[$IP].FileHash
+
+
+        $Hashlist += [PSCustomObject]@{
+            IP = $IP
+            Hash = $Hash
+        }
+
+    }
+
+
+
+    $Hashlist = $Hashlist | Sort-Object Hash -Unique
+
+    foreach ($item in $Hashlist){
+
+        write-host -ForegroundColor Green "Checking hash $($item.Hash) associated with IP Address $($item.IP) against VirutotalDB"
+
+        try {
+        $response = Query-VirusTotal -FileHash $item.Hash -APIKey $APIKeys.VirusTotalAPIKey 
+            if ($response.data.attributes.last_analysis_stats.malicious -gt 0){write-host -ForegroundColor red "Hash $($item.Hash) associated with IP Address $($item.IP) is malicious!"}
+        $global:MasterDatabase[$item.IP]["VirusTotalResult"] = $response.data.attributes.last_analysis_stats.malicious
         $counter++
+        }
+        catch{
+            write-host "An error occured getting Virustotal report on hash $($item.Hash)"
+            write-host "Error: $_"
 
+        }
+        
     if ($counter -eq 4){
         write-host -ForegroundColor Cyan "VirusTotal API rate limit of 4 requests/minute limit reached, pausing querying until limit resets (60 seconds)"
         start-sleep 60
@@ -301,16 +328,27 @@ if ($input -eq "Get-VirusTotal"){
     
 }
 
-    write-host -ForegroundColor Cyan "Returning to main menu.. `n"
-    start-sleep 1 
-    clear-host
+   write-host -ForegroundColor Cyan "`nPress any key to return to main menu.."
+
+    [System.Console]::ReadKey($true)
     return submain
 
 }
 
 if ($input -eq "Show-Database"){
 
-    $global:MasterDatabase
+    foreach ($IP in $global:MasterDatabase.keys){
+
+        Write-Host -ForegroundColor Yellow "IP Address: $($IP):"
+        $global:MasterDatabase[$IP] | Format-List
+        
+
+        
+    }
+
+    write-host -ForegroundColor Cyan "`nPress any key to return to main menu.."
+    [System.Console]::ReadKey($true)
+    return submain
 
 }
 
